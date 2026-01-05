@@ -61,13 +61,17 @@ class ShopCommands(commands.Cog):
     @app_commands.command(name="shop", description="Spend jopacoin in the shop")
     @app_commands.describe(
         item="What to buy",
-        target="User to tag in your announcement (costs more!)",
+        target="User to tag (required for 'Announce + Tag' option)",
     )
     @app_commands.choices(
         item=[
             app_commands.Choice(
                 name=f"Announce Balance ({SHOP_ANNOUNCE_COST} jopacoin)",
                 value="announce",
+            ),
+            app_commands.Choice(
+                name=f"Announce Balance + Tag User ({SHOP_ANNOUNCE_TARGET_COST} jopacoin)",
+                value="announce_target",
             ),
         ]
     )
@@ -95,7 +99,18 @@ class ShopCommands(commands.Cog):
             return
 
         if item.value == "announce":
-            await self._handle_announce(interaction, target)
+            # Basic announcement - ignore target if provided
+            await self._handle_announce(interaction, target=None)
+        elif item.value == "announce_target":
+            # Targeted announcement - require target
+            if not target:
+                await interaction.response.send_message(
+                    "You selected 'Announce + Tag User' but didn't specify a target. "
+                    "Please provide a user to tag!",
+                    ephemeral=True,
+                )
+                return
+            await self._handle_announce(interaction, target=target)
 
     async def _handle_announce(
         self,

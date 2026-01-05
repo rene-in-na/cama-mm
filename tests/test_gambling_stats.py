@@ -14,7 +14,6 @@ from services.bankruptcy_service import BankruptcyRepository, BankruptcyService
 from services.gambling_stats_service import (
     DegenScoreBreakdown,
     GamblingStatsService,
-    GambaStats,
     Leaderboard,
 )
 

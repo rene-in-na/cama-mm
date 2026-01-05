@@ -70,9 +70,9 @@ from repositories.pairings_repository import PairingsRepository
 from repositories.player_repository import PlayerRepository
 from services.bankruptcy_service import BankruptcyRepository, BankruptcyService
 from services.betting_service import BettingService
-from services.loan_service import LoanRepository, LoanService
 from services.gambling_stats_service import GamblingStatsService
 from services.garnishment_service import GarnishmentService
+from services.loan_service import LoanRepository, LoanService
 from services.lobby_service import LobbyService
 from services.match_service import MatchService
 from services.permissions import has_admin_permission  # noqa: F401 - used by tests

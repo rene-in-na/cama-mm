@@ -13,14 +13,12 @@ from config import (
     BANKRUPTCY_PENALTY_RATE,
     GARNISHMENT_PERCENTAGE,
     JOPACOIN_MIN_BET,
-    LOAN_COOLDOWN_SECONDS,
     LOAN_FEE_RATE,
-    LOAN_MAX_AMOUNT,
 )
 from services.bankruptcy_service import BankruptcyService
 from services.betting_service import BettingService
-from services.loan_service import LoanService
 from services.gambling_stats_service import GamblingStatsService
+from services.loan_service import LoanService
 from services.match_service import MatchService
 from services.player_service import PlayerService
 from utils.drawing import draw_gamba_chart

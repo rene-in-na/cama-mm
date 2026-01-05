@@ -347,10 +347,11 @@ class AdminCommands(commands.Cog):
         # Get current state
         state = self.loan_service.get_state(user.id)
 
-        # Reset the cooldown by setting last_loan_at to None
+        # Reset the cooldown by setting last_loan_at to 0 (epoch = no cooldown)
+        # Note: Can't use None because COALESCE in upsert keeps old value
         self.loan_service.loan_repo.upsert_state(
             discord_id=user.id,
-            last_loan_at=None,
+            last_loan_at=0,
             total_loans_taken=state.total_loans_taken,
             total_fees_paid=state.total_fees_paid,
             negative_loans_taken=state.negative_loans_taken,

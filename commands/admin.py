@@ -24,13 +24,14 @@ _processed_interactions = set()
 class AdminCommands(commands.Cog):
     """Admin-only slash commands."""
 
-    def __init__(self, bot: commands.Bot, lobby_service, player_repo, loan_service=None, bankruptcy_service=None, guild_config_repo=None):
+    def __init__(self, bot: commands.Bot, lobby_service, player_repo, loan_service=None, bankruptcy_service=None, guild_config_repo=None, match_discovery_service=None):
         self.bot = bot
         self.lobby_service = lobby_service
         self.player_repo = player_repo
         self.loan_service = loan_service
         self.bankruptcy_service = bankruptcy_service
         self.guild_config_repo = guild_config_repo
+        self.match_discovery_service = match_discovery_service
 
     @app_commands.command(
         name="addfake", description="Add fake users to lobby for testing (Admin only)"
@@ -459,6 +460,88 @@ class AdminCommands(commands.Cog):
                 ephemeral=True,
             )
 
+    @app_commands.command(
+        name="autoenrich", description="Auto-enrich all unenriched matches in this league (Admin only)"
+    )
+    async def autoenrich(self, interaction: discord.Interaction):
+        """Admin command to auto-enrich all unenriched matches using the configured league ID."""
+        if not has_admin_permission(interaction):
+            await interaction.response.send_message(
+                "❌ Admin only! You need Administrator or Manage Server permissions.",
+                ephemeral=True,
+            )
+            return
+
+        if not self.match_discovery_service:
+            await interaction.response.send_message(
+                "❌ Match discovery service not available.",
+                ephemeral=True,
+            )
+            return
+
+        guild_id = interaction.guild.id if interaction.guild else 0
+
+        # Check if league_id is configured
+        league_id = None
+        if self.guild_config_repo:
+            league_id = self.guild_config_repo.get_league_id(guild_id)
+
+        await safe_defer(interaction, ephemeral=False)
+
+        # Show initial message
+        if league_id:
+            status_msg = f"🔍 Starting auto-enrichment for league **{league_id}**...\nThis may take a while depending on the number of unenriched matches."
+        else:
+            status_msg = "🔍 Starting auto-enrichment (no league filter configured)...\nThis may take a while depending on the number of unenriched matches.\n\n⚠️ **Tip:** Use `/setleague` to filter matches by league ID."
+
+        await safe_followup(interaction, content=status_msg, ephemeral=False)
+
+        try:
+            # Run discovery
+            logger.info(
+                f"Admin {interaction.user.id} ({interaction.user}) triggered auto-enrichment "
+                f"for guild {guild_id} (league_id={league_id})"
+            )
+            results = self.match_discovery_service.discover_all_matches(dry_run=False, guild_id=guild_id)
+
+            # Build results summary
+            total = results["total_unenriched"]
+            discovered = results["discovered"]
+            low_conf = results["skipped_low_confidence"]
+            no_steam = results["skipped_no_steam_ids"]
+            errors = results["errors"]
+
+            summary = f"✅ **Auto-enrichment complete!**\n\n"
+            summary += f"📊 **Results:**\n"
+            summary += f"• Total unenriched matches: **{total}**\n"
+            summary += f"• Successfully enriched: **{discovered}** ✅\n"
+
+            if low_conf > 0:
+                summary += f"• Low confidence (skipped): **{low_conf}** ⚠️\n"
+            if no_steam > 0:
+                summary += f"• No Steam IDs (skipped): **{no_steam}** ℹ️\n"
+            if errors > 0:
+                summary += f"• Errors: **{errors}** ❌\n"
+
+            if no_steam > 0:
+                summary += f"\n💡 **Tip:** Players need to register with Steam IDs for auto-enrichment to work. Use `/register` with a Steam32 ID."
+
+            await safe_followup(interaction, content=summary, ephemeral=False)
+
+            logger.info(
+                f"Auto-enrichment complete for guild {guild_id}: "
+                f"{discovered} discovered, {low_conf} low confidence, "
+                f"{no_steam} no steam_ids, {errors} errors"
+            )
+
+        except Exception as e:
+            logger.error(f"Error during auto-enrichment: {e}", exc_info=True)
+            await safe_followup(
+                interaction,
+                content=f"❌ Error during auto-enrichment: {e}",
+                ephemeral=False,
+            )
+
 
 async def setup(bot: commands.Bot):
     lobby_service = getattr(bot, "lobby_service", None)
@@ -467,17 +550,18 @@ async def setup(bot: commands.Bot):
     loan_service = getattr(bot, "loan_service", None)
     bankruptcy_service = getattr(bot, "bankruptcy_service", None)
     guild_config_repo = getattr(bot, "guild_config_repo", None)
+    match_discovery_service = getattr(bot, "match_discovery_service", None)
 
     # Check if cog is already loaded
     if "AdminCommands" in [cog.__class__.__name__ for cog in bot.cogs.values()]:
         logger.warning("AdminCommands cog is already loaded, skipping duplicate registration")
         return
 
-    await bot.add_cog(AdminCommands(bot, lobby_service, player_repo, loan_service, bankruptcy_service, guild_config_repo))
+    await bot.add_cog(AdminCommands(bot, lobby_service, player_repo, loan_service, bankruptcy_service, guild_config_repo, match_discovery_service))
 
     # Log command registration
     admin_commands = [
-        cmd.name for cmd in bot.tree.walk_commands() if cmd.name in ["addfake", "resetuser", "sync", "givecoin", "resetloancooldown", "resetbankruptcycooldown", "setleague"]
+        cmd.name for cmd in bot.tree.walk_commands() if cmd.name in ["addfake", "resetuser", "sync", "givecoin", "resetloancooldown", "resetbankruptcycooldown", "setleague", "autoenrich"]
     ]
     logger.info(
         f"AdminCommands cog loaded. Registered commands: {admin_commands}. "

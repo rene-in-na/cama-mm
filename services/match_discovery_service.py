@@ -36,12 +36,13 @@ class MatchDiscoveryService:
         self.opendota_api = opendota_api or OpenDotaAPI()
         self.guild_config_repo = guild_config_repo
 
-    def discover_all_matches(self, dry_run: bool = False) -> dict:
+    def discover_all_matches(self, dry_run: bool = False, guild_id: int | None = None) -> dict:
         """
         Discover Dota 2 match IDs for all unenriched internal matches.
 
         Args:
             dry_run: If True, don't apply enrichments, just report findings
+            guild_id: Guild ID for league filtering (optional)
 
         Returns:
             Dict with:
@@ -52,7 +53,7 @@ class MatchDiscoveryService:
             - errors: int
             - details: list of {match_id, valve_match_id, confidence, status}
         """
-        logger.info(f"Starting match discovery (dry_run={dry_run})")
+        logger.info(f"Starting match discovery (dry_run={dry_run}, guild_id={guild_id})")
 
         unenriched = self.match_repo.get_matches_without_enrichment(limit=1000)
         results = {
@@ -67,7 +68,7 @@ class MatchDiscoveryService:
         for match in unenriched:
             match_id = match["match_id"]
             try:
-                result = self._discover_single_match(match_id, dry_run)
+                result = self._discover_single_match(match_id, dry_run, guild_id=guild_id)
                 results["details"].append(result)
 
                 if result["status"] == "discovered":

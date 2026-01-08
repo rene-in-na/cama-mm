@@ -301,6 +301,45 @@ class TestMatchDiscoveryService:
         assert result["valve_match_id"] == 99999
         assert result["confidence"] == 1.0
 
+    def test_discover_all_matches_with_guild_id(self, mock_repos, mock_opendota_api):
+        """Test discover_all_matches passes guild_id through to single match discovery."""
+        match_repo, player_repo = mock_repos
+        guild_config_repo = Mock()
+
+        # Setup guild with league_id = 15821
+        guild_config_repo.get_league_id.return_value = 15821
+
+        # Setup two unenriched matches
+        match_repo.get_matches_without_enrichment.return_value = [
+            {"match_id": 1},
+            {"match_id": 2},
+        ]
+
+        match_repo.get_match.return_value = {
+            "match_id": 1,
+            "match_date": "2024-01-15 12:00:00",
+        }
+        match_repo.get_match_participants.return_value = [{"discord_id": i} for i in range(1, 11)]
+
+        player_repo.get_steam_id.side_effect = list(range(1001, 1011)) * 2
+
+        match_time = int(datetime(2024, 1, 15, 12, 0, 0).timestamp())
+
+        # All matches in correct league
+        mock_opendota_api.get_player_matches.return_value = [
+            {"match_id": 99999, "start_time": match_time, "league_id": 15821},
+        ]
+
+        service = MatchDiscoveryService(
+            match_repo, player_repo, mock_opendota_api, guild_config_repo=guild_config_repo
+        )
+        results = service.discover_all_matches(dry_run=True, guild_id=123)
+
+        # Should discover both matches
+        assert results["total_unenriched"] == 2
+        assert results["discovered"] == 2
+        assert results["skipped_low_confidence"] == 0
+
 
 class TestMatchRepositoryWipeMethods:
     """Tests for MatchRepository wipe and discovery-related methods."""

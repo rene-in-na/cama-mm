@@ -6,7 +6,8 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(sqlite3:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(uv run pytest:*)"
     ]
   }
 }

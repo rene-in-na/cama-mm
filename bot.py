@@ -328,6 +328,7 @@ def _init_services():
     bot.bankruptcy_service = bankruptcy_service
     bot.loan_service = loan_service
     bot.disburse_service = disburse_service
+    bot.match_discovery_service = match_discovery_service
 
     # Create gambling stats service for degen score and leaderboards
     gambling_stats_service = GamblingStatsService(

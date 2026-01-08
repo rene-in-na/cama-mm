@@ -31,6 +31,7 @@ class MatchService:
         betting_service: BettingService | None = None,
         pairings_repo: IPairingsRepository | None = None,
         loan_service=None,
+        match_discovery_service=None,
     ):
         """
         Initialize MatchService with required repository dependencies.
@@ -42,6 +43,7 @@ class MatchService:
             betting_service: Optional betting service for wager handling
             pairings_repo: Optional repository for pairwise player statistics
             loan_service: Optional loan service for deferred repayment
+            match_discovery_service: Optional service for auto-discovering Valve match IDs
         """
         self.player_repo = player_repo
         self.match_repo = match_repo
@@ -58,6 +60,7 @@ class MatchService:
         self.betting_service = betting_service
         self.pairings_repo = pairings_repo
         self.loan_service = loan_service
+        self.match_discovery_service = match_discovery_service
         # Guard against concurrent finalizations per guild
         self._recording_lock = threading.Lock()
         self._recording_in_progress: set[int] = set()
@@ -645,6 +648,26 @@ class MatchService:
             # Clear state after successful record
             self.clear_last_shuffle(guild_id)
 
+            # Attempt auto-discovery of Valve match ID for enrichment
+            discovery_result = None
+            if self.match_discovery_service and not dotabuff_match_id:
+                try:
+                    import logging
+                    logger = logging.getLogger("cama_bot.services.match")
+                    logger.info(f"Attempting auto-discovery for match {match_id}")
+                    discovery_result = self.match_discovery_service.discover_match(match_id)
+                    if discovery_result.get("status") == "discovered":
+                        logger.info(
+                            f"Match {match_id} auto-enriched with Valve ID "
+                            f"{discovery_result['valve_match_id']} "
+                            f"(confidence: {discovery_result['confidence']:.1%})"
+                        )
+                except Exception as e:
+                    # Don't fail the match recording if auto-discovery fails
+                    import logging
+                    logger = logging.getLogger("cama_bot.services.match")
+                    logger.warning(f"Auto-discovery failed for match {match_id}: {e}")
+
             return {
                 "match_id": match_id,
                 "winning_team": winning_team,
@@ -653,6 +676,7 @@ class MatchService:
                 "losing_player_ids": losing_ids,
                 "bet_distributions": distributions,
                 "loan_repayments": loan_repayments,
+                "discovery_result": discovery_result,
             }
         finally:
             with self._recording_lock:

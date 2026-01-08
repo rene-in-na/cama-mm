@@ -287,6 +287,17 @@ def _init_services():
         max_players=LOBBY_MAX_PLAYERS,
     )
 
+    # Create match discovery service for auto-enrichment
+    from services.match_discovery_service import MatchDiscoveryService
+    from opendota_integration import OpenDotaAPI
+
+    opendota_api = OpenDotaAPI()
+    match_discovery_service = MatchDiscoveryService(
+        match_repo=match_repo,
+        player_repo=player_repo,
+        opendota_api=opendota_api,
+    )
+
     # Create match service
     match_service = MatchService(
         player_repo=player_repo,
@@ -295,6 +306,7 @@ def _init_services():
         betting_service=betting_service,
         pairings_repo=pairings_repo,
         loan_service=loan_service,
+        match_discovery_service=match_discovery_service,
     )
 
     # Expose on bot for cogs

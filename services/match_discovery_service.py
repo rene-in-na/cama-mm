@@ -30,10 +30,11 @@ class MatchDiscoveryService:
     player match histories from OpenDota.
     """
 
-    def __init__(self, match_repo, player_repo, opendota_api: OpenDotaAPI | None = None):
+    def __init__(self, match_repo, player_repo, opendota_api: OpenDotaAPI | None = None, guild_config_repo=None):
         self.match_repo = match_repo
         self.player_repo = player_repo
         self.opendota_api = opendota_api or OpenDotaAPI()
+        self.guild_config_repo = guild_config_repo
 
     def discover_all_matches(self, dry_run: bool = False) -> dict:
         """
@@ -99,15 +100,27 @@ class MatchDiscoveryService:
 
         return results
 
-    def _discover_single_match(self, match_id: int, dry_run: bool) -> dict:
+    def _discover_single_match(self, match_id: int, dry_run: bool, guild_id: int | None = None) -> dict:
         """
         Attempt to discover the Dota 2 match ID for a single internal match.
+
+        Args:
+            match_id: Internal match ID
+            dry_run: If True, don't enrich, just report findings
+            guild_id: Guild ID for league filtering (optional)
 
         Returns dict with match_id, status, and optionally valve_match_id/confidence.
         """
         match = self.match_repo.get_match(match_id)
         if not match:
             return {"match_id": match_id, "status": "not_found"}
+
+        # Get league_id from guild config if available
+        league_id = None
+        if self.guild_config_repo and guild_id is not None:
+            league_id = self.guild_config_repo.get_league_id(guild_id)
+            if league_id:
+                logger.info(f"Filtering matches for league_id={league_id}")
 
         participants = self.match_repo.get_match_participants(match_id)
 
@@ -145,11 +158,20 @@ class MatchDiscoveryService:
 
                 for m in recent_matches:
                     start_time = m.get("start_time", 0)
-                    if abs(start_time - match_time) <= TIME_WINDOW_SECONDS:
-                        valve_match_id = m.get("match_id")
-                        if valve_match_id not in candidate_matches:
-                            candidate_matches[valve_match_id] = set()
-                        candidate_matches[valve_match_id].add(steam_id)
+                    # Filter by time window
+                    if abs(start_time - match_time) > TIME_WINDOW_SECONDS:
+                        continue
+
+                    # Filter by league_id if configured
+                    if league_id is not None:
+                        match_league_id = m.get("league_id")
+                        if match_league_id != league_id:
+                            continue
+
+                    valve_match_id = m.get("match_id")
+                    if valve_match_id not in candidate_matches:
+                        candidate_matches[valve_match_id] = set()
+                    candidate_matches[valve_match_id].add(steam_id)
 
             except Exception as e:
                 logger.warning(f"Error fetching matches for steam_id {steam_id}: {e}")
@@ -216,18 +238,19 @@ class MatchDiscoveryService:
                 "total_players": len(steam_ids),
             }
 
-    def discover_match(self, match_id: int) -> dict:
+    def discover_match(self, match_id: int, guild_id: int | None = None) -> dict:
         """
         Public method to discover and enrich a single match.
 
         Args:
             match_id: Internal match ID to discover
+            guild_id: Guild ID for league filtering (optional)
 
         Returns:
             Dict with status and details (same as _discover_single_match)
         """
         logger.info(f"Auto-discovery triggered for match {match_id}")
-        return self._discover_single_match(match_id, dry_run=False)
+        return self._discover_single_match(match_id, dry_run=False, guild_id=guild_id)
 
     def _parse_match_time(self, match_date) -> int | None:
         """Parse match_date to Unix timestamp."""

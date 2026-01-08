@@ -655,7 +655,7 @@ class MatchService:
                     import logging
                     logger = logging.getLogger("cama_bot.services.match")
                     logger.info(f"Attempting auto-discovery for match {match_id}")
-                    discovery_result = self.match_discovery_service.discover_match(match_id)
+                    discovery_result = self.match_discovery_service.discover_match(match_id, guild_id=guild_id)
                     if discovery_result.get("status") == "discovered":
                         logger.info(
                             f"Match {match_id} auto-enriched with Valve ID "

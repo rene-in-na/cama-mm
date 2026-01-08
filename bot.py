@@ -296,6 +296,7 @@ def _init_services():
         match_repo=match_repo,
         player_repo=player_repo,
         opendota_api=opendota_api,
+        guild_config_repo=guild_config_repo,
     )
 
     # Create match service

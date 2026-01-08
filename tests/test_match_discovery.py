@@ -225,6 +225,82 @@ class TestMatchDiscoveryService:
         assert service._parse_match_time(None) is None
         assert service._parse_match_time("invalid") is None
 
+    def test_discover_match_with_league_id_filter(self, mock_repos, mock_opendota_api):
+        """Test discovery filters matches by league_id when configured."""
+        match_repo, player_repo = mock_repos
+        guild_config_repo = Mock()
+
+        # Setup guild with league_id = 15821
+        guild_config_repo.get_league_id.return_value = 15821
+
+        match_repo.get_match.return_value = {
+            "match_id": 1,
+            "match_date": "2024-01-15 12:00:00",
+        }
+        match_repo.get_match_participants.return_value = [{"discord_id": i} for i in range(1, 11)]
+
+        player_repo.get_steam_id.side_effect = list(range(1001, 1011))
+
+        match_time = int(datetime(2024, 1, 15, 12, 0, 0).timestamp())
+
+        # OpenDota returns matches with different league_ids
+        def mock_get_matches(steam_id, limit=20):
+            if steam_id < 1006:
+                # First 5 players: match in wrong league
+                return [
+                    {"match_id": 88888, "start_time": match_time, "league_id": 99999},
+                ]
+            else:
+                # Last 5 players: match in correct league
+                return [
+                    {"match_id": 99999, "start_time": match_time, "league_id": 15821},
+                ]
+
+        mock_opendota_api.get_player_matches.side_effect = mock_get_matches
+
+        service = MatchDiscoveryService(
+            match_repo, player_repo, mock_opendota_api, guild_config_repo=guild_config_repo
+        )
+        result = service._discover_single_match(1, dry_run=True, guild_id=123)
+
+        # Should only find the correct league match (last 5 players)
+        assert result["status"] == "low_confidence"  # Only 50% confidence
+        assert result["best_valve_match_id"] == 99999
+        assert result["player_count"] == 5
+
+    def test_discover_match_without_league_id_accepts_all(self, mock_repos, mock_opendota_api):
+        """Test discovery accepts all matches when no league_id is configured."""
+        match_repo, player_repo = mock_repos
+        guild_config_repo = Mock()
+
+        # No league_id configured
+        guild_config_repo.get_league_id.return_value = None
+
+        match_repo.get_match.return_value = {
+            "match_id": 1,
+            "match_date": "2024-01-15 12:00:00",
+        }
+        match_repo.get_match_participants.return_value = [{"discord_id": i} for i in range(1, 11)]
+
+        player_repo.get_steam_id.side_effect = list(range(1001, 1011))
+
+        match_time = int(datetime(2024, 1, 15, 12, 0, 0).timestamp())
+
+        # All players have matches with different league_ids
+        mock_opendota_api.get_player_matches.return_value = [
+            {"match_id": 99999, "start_time": match_time, "league_id": 12345},
+        ]
+
+        service = MatchDiscoveryService(
+            match_repo, player_repo, mock_opendota_api, guild_config_repo=guild_config_repo
+        )
+        result = service._discover_single_match(1, dry_run=True, guild_id=123)
+
+        # Should find match even though league_id doesn't match (because filtering disabled)
+        assert result["status"] == "discovered"
+        assert result["valve_match_id"] == 99999
+        assert result["confidence"] == 1.0
+
 
 class TestMatchRepositoryWipeMethods:
     """Tests for MatchRepository wipe and discovery-related methods."""

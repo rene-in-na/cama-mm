@@ -24,12 +24,13 @@ _processed_interactions = set()
 class AdminCommands(commands.Cog):
     """Admin-only slash commands."""
 
-    def __init__(self, bot: commands.Bot, lobby_service, player_repo, loan_service=None, bankruptcy_service=None):
+    def __init__(self, bot: commands.Bot, lobby_service, player_repo, loan_service=None, bankruptcy_service=None, guild_config_repo=None):
         self.bot = bot
         self.lobby_service = lobby_service
         self.player_repo = player_repo
         self.loan_service = loan_service
         self.bankruptcy_service = bankruptcy_service
+        self.guild_config_repo = guild_config_repo
 
     @app_commands.command(
         name="addfake", description="Add fake users to lobby for testing (Admin only)"
@@ -418,6 +419,46 @@ class AdminCommands(commands.Cog):
             f"{user.id} ({user})"
         )
 
+    @app_commands.command(
+        name="setleague", description="Set the Dota 2 league ID for this server (Admin only)"
+    )
+    @app_commands.describe(league_id="The league ID from OpenDota/Stratz (e.g., 15821 for CCL)")
+    async def setleague(self, interaction: discord.Interaction, league_id: int):
+        """Admin command to set the league ID for auto-enrichment filtering."""
+        if not has_admin_permission(interaction):
+            await interaction.response.send_message(
+                "❌ Admin only! You need Administrator or Manage Server permissions.",
+                ephemeral=True,
+            )
+            return
+
+        if not self.guild_config_repo:
+            await interaction.response.send_message(
+                "❌ Guild configuration service not available.",
+                ephemeral=True,
+            )
+            return
+
+        guild_id = interaction.guild.id if interaction.guild else 0
+
+        try:
+            self.guild_config_repo.set_league_id(guild_id, league_id)
+            await interaction.response.send_message(
+                f"✅ Set league ID to **{league_id}** for this server.\n"
+                f"Auto-enrichment will now only match games from this league.",
+                ephemeral=True,
+            )
+            logger.info(
+                f"Admin {interaction.user.id} ({interaction.user}) set league_id={league_id} "
+                f"for guild {guild_id}"
+            )
+        except Exception as e:
+            logger.error(f"Error setting league ID: {e}", exc_info=True)
+            await interaction.response.send_message(
+                f"❌ Error setting league ID: {e}",
+                ephemeral=True,
+            )
+
 
 async def setup(bot: commands.Bot):
     lobby_service = getattr(bot, "lobby_service", None)
@@ -425,17 +466,18 @@ async def setup(bot: commands.Bot):
     player_repo = getattr(bot, "player_repo", None)
     loan_service = getattr(bot, "loan_service", None)
     bankruptcy_service = getattr(bot, "bankruptcy_service", None)
+    guild_config_repo = getattr(bot, "guild_config_repo", None)
 
     # Check if cog is already loaded
     if "AdminCommands" in [cog.__class__.__name__ for cog in bot.cogs.values()]:
         logger.warning("AdminCommands cog is already loaded, skipping duplicate registration")
         return
 
-    await bot.add_cog(AdminCommands(bot, lobby_service, player_repo, loan_service, bankruptcy_service))
+    await bot.add_cog(AdminCommands(bot, lobby_service, player_repo, loan_service, bankruptcy_service, guild_config_repo))
 
     # Log command registration
     admin_commands = [
-        cmd.name for cmd in bot.tree.walk_commands() if cmd.name in ["addfake", "resetuser", "sync", "givecoin", "resetloancooldown", "resetbankruptcycooldown"]
+        cmd.name for cmd in bot.tree.walk_commands() if cmd.name in ["addfake", "resetuser", "sync", "givecoin", "resetloancooldown", "resetbankruptcycooldown", "setleague"]
     ]
     logger.info(
         f"AdminCommands cog loaded. Registered commands: {admin_commands}. "

@@ -387,6 +387,119 @@ class AdvancedStatsCommands(commands.Cog):
             )
 
 
+    @app_commands.command(
+        name="rolewinrate", description="View win rate by lane role (for enriched league matches)"
+    )
+    @app_commands.describe(user="Player to view stats for (defaults to yourself)")
+    async def rolewinrate(
+        self, interaction: discord.Interaction, user: discord.Member | None = None
+    ):
+        """View win rate broken down by lane role (Safe, Mid, Off, Jungle, Roaming)."""
+        logger.info(
+            "Rolewinrate command: User %s requested stats for %s",
+            interaction.user.id,
+            user.id if user else "self",
+        )
+        if not await safe_defer(interaction, ephemeral=False):
+            return
+
+        target_id = user.id if user else interaction.user.id
+        target_name = user.display_name if user else interaction.user.display_name
+
+        # Verify player is registered
+        player = self.player_repo.get_by_id(target_id)
+        if not player:
+            await safe_followup(
+                interaction,
+                content=f"{'That user is' if user else 'You are'} not registered. Use `/register` first.",
+                ephemeral=True,
+            )
+            return
+
+        # Query match_participants for lane role stats
+        try:
+            import sqlite3
+
+            conn = sqlite3.connect(self.player_repo.db_path)
+            cursor = conn.cursor()
+
+            # Get win/loss stats by lane role
+            cursor.execute(
+                """
+                SELECT
+                    lane_role,
+                    COUNT(*) as games,
+                    SUM(CASE WHEN won = 1 THEN 1 ELSE 0 END) as wins
+                FROM match_participants
+                WHERE discord_id = ? AND lane_role IS NOT NULL
+                GROUP BY lane_role
+                ORDER BY games DESC
+                """,
+                (target_id,),
+            )
+
+            role_stats = cursor.fetchall()
+            conn.close()
+
+            if not role_stats:
+                await safe_followup(
+                    interaction,
+                    content=f"No enriched match data found for **{target_name}**. Matches need to be enriched with `/enrichmatch` to track lane roles.",
+                    ephemeral=True,
+                )
+                return
+
+            # Lane role names mapping
+            LANE_NAMES = {
+                0: "Roaming",
+                1: "Safe Lane",
+                2: "Mid",
+                3: "Off Lane",
+                4: "Jungle",
+            }
+
+            # Build embed
+            embed = discord.Embed(
+                title=f"Win Rate by Lane Role - {target_name}",
+                color=discord.Color.blue(),
+            )
+
+            lines = []
+            total_games = 0
+            total_wins = 0
+
+            for lane_role, games, wins in role_stats:
+                losses = games - wins
+                win_rate = (wins / games * 100) if games > 0 else 0
+                lane_name = LANE_NAMES.get(lane_role, f"Unknown ({lane_role})")
+
+                lines.append(
+                    f"**{lane_name}**: {wins}W-{losses}L ({win_rate:.1f}%) — {games} games"
+                )
+                total_games += games
+                total_wins += wins
+
+            total_losses = total_games - total_wins
+            overall_wr = (total_wins / total_games * 100) if total_games > 0 else 0
+
+            embed.description = "\n".join(lines)
+            embed.add_field(
+                name="Overall",
+                value=f"{total_wins}W-{total_losses}L ({overall_wr:.1f}%) — {total_games} total enriched games",
+                inline=False,
+            )
+
+            await safe_followup(interaction, embed=embed)
+
+        except Exception as e:
+            logger.error(f"Error fetching role win rate: {e}", exc_info=True)
+            await safe_followup(
+                interaction,
+                content="An error occurred while fetching role statistics.",
+                ephemeral=True,
+            )
+
+
 async def setup(bot: commands.Bot):
     """Setup function called when loading the cog."""
     pairings_repo = getattr(bot, "pairings_repo", None)

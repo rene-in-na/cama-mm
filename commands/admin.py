@@ -443,21 +443,79 @@ class AdminCommands(commands.Cog):
         guild_id = interaction.guild.id if interaction.guild else 0
 
         try:
+            # Defer the response since we'll trigger auto-enrichment
+            await safe_defer(interaction, ephemeral=False)
+
+            # Set the league ID
             self.guild_config_repo.set_league_id(guild_id, league_id)
-            await interaction.response.send_message(
-                f"✅ Set league ID to **{league_id}** for this server.\n"
-                f"Auto-enrichment will now only match games from this league.",
-                ephemeral=True,
-            )
             logger.info(
                 f"Admin {interaction.user.id} ({interaction.user}) set league_id={league_id} "
                 f"for guild {guild_id}"
             )
+
+            # Send initial confirmation
+            await safe_followup(
+                interaction,
+                content=f"✅ Set league ID to **{league_id}** for this server.\n\n"
+                f"🔍 Starting auto-enrichment for all unenriched matches...",
+                ephemeral=False,
+            )
+
+            # Trigger auto-enrichment if match_discovery_service is available
+            if self.match_discovery_service:
+                try:
+                    results = self.match_discovery_service.discover_all_matches(dry_run=False, guild_id=guild_id)
+
+                    # Build results summary
+                    total = results["total_unenriched"]
+                    discovered = results["discovered"]
+                    low_conf = results["skipped_low_confidence"]
+                    no_steam = results["skipped_no_steam_ids"]
+                    errors = results["errors"]
+
+                    summary = f"✅ **Auto-enrichment complete!**\n\n"
+                    summary += f"📊 **Results:**\n"
+                    summary += f"• Total unenriched matches: **{total}**\n"
+                    summary += f"• Successfully enriched: **{discovered}** ✅\n"
+
+                    if low_conf > 0:
+                        summary += f"• Low confidence (skipped): **{low_conf}** ⚠️\n"
+                    if no_steam > 0:
+                        summary += f"• No Steam IDs (skipped): **{no_steam}** ℹ️\n"
+                    if errors > 0:
+                        summary += f"• Errors: **{errors}** ❌\n"
+
+                    if no_steam > 0:
+                        summary += f"\n💡 **Tip:** Players need to register with Steam IDs for auto-enrichment to work. Use `/register` with a Steam32 ID."
+
+                    await safe_followup(interaction, content=summary, ephemeral=False)
+
+                    logger.info(
+                        f"Auto-enrichment after setleague complete for guild {guild_id}: "
+                        f"{discovered} discovered, {low_conf} low confidence, "
+                        f"{no_steam} no steam_ids, {errors} errors"
+                    )
+                except Exception as enrich_error:
+                    logger.error(f"Error during auto-enrichment after setleague: {enrich_error}", exc_info=True)
+                    await safe_followup(
+                        interaction,
+                        content=f"⚠️ League ID was set, but auto-enrichment encountered an error: {enrich_error}",
+                        ephemeral=False,
+                    )
+            else:
+                # No match_discovery_service available
+                await safe_followup(
+                    interaction,
+                    content="⚠️ League ID was set, but match discovery service is not available for auto-enrichment.",
+                    ephemeral=False,
+                )
+
         except Exception as e:
             logger.error(f"Error setting league ID: {e}", exc_info=True)
-            await interaction.response.send_message(
-                f"❌ Error setting league ID: {e}",
-                ephemeral=True,
+            await safe_followup(
+                interaction,
+                content=f"❌ Error setting league ID: {e}",
+                ephemeral=False,
             )
 
     @app_commands.command(

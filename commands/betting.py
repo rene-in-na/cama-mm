@@ -3725,8 +3725,8 @@ class BettingCommands(commands.Cog):
                 self.disburse_service.force_execute, guild_id
             )
         except ValueError as e:
-            await safe_followup(
-                interaction, content=f"Cannot execute: {e}", ephemeral=True
+            await interaction.followup.send(
+                content=f"Cannot execute: {e}", ephemeral=True
             )
             return
 
@@ -3737,14 +3737,14 @@ class BettingCommands(commands.Cog):
                 description=disbursement.get("message", "Proposal cancelled."),
                 color=0xFF6B6B,
             )
-            await safe_followup(interaction, embed=embed)
+            await interaction.followup.send(embed=embed)
         elif disbursement["total_disbursed"] == 0:
             embed = discord.Embed(
                 title="💝 Disbursement Complete (Admin)",
                 description=disbursement.get("message", "No funds were distributed."),
                 color=0x00FF00,
             )
-            await safe_followup(interaction, embed=embed)
+            await interaction.followup.send(embed=embed)
         else:
             recipients = disbursement["distributions"]
             recipient_lines = []
@@ -3766,7 +3766,7 @@ class BettingCommands(commands.Cog):
                 color=0x00FF00,
             )
             embed.set_footer(text=f"Force-executed by {interaction.user.display_name}")
-            await safe_followup(interaction, embed=embed)
+            await interaction.followup.send(embed=embed)
 
         # Disable buttons on the original voting message
         try:

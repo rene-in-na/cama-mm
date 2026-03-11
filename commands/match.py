@@ -12,7 +12,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from config import BOMB_POT_CHANCE, ENRICHMENT_RETRY_DELAYS, FIRST_GAME_BONUS, JOPACOIN_MIN_BET, OPENSKILL_SHUFFLE_CHANCE, STREAMING_BONUS
+from config import BOMB_POT_CHANCE, ENRICHMENT_RETRY_DELAYS, FIRST_GAME_BONUS, JOPACOIN_MIN_BET, STREAMING_BONUS
 from services.flavor_text_service import FlavorEvent
 from services.lobby_service import LobbyService
 from services.match_discovery_service import MatchDiscoveryService
@@ -502,11 +502,7 @@ class MatchCommands(commands.Cog):
         mode = "pool"  # betting_mode.value if betting_mode else "pool"
         rs = rating_system.value if rating_system else "glicko"
 
-        # Random chance to use OpenSkill (only if user didn't explicitly pick)
-        is_openskill_shuffle = False
-        if not rating_system and random.random() < OPENSKILL_SHUFFLE_CHANCE:
-            rs = "openskill"
-            is_openskill_shuffle = True
+        is_openskill_shuffle = rs == "openskill"
 
         try:
             result = await asyncio.to_thread(

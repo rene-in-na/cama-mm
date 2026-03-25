@@ -15,7 +15,7 @@ dependencies = [
     "dotabase>=7.8.0",
     "sqlalchemy-utils>=0.41.0",
     "pillow>=10.0.0",
-    "litellm>=1.0.0",
+    "litellm==1.80.13",
     "matplotlib>=3.8.0",
     "scipy>=1.11.0",
     "openskill>=6.0.0",

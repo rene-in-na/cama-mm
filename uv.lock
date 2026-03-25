@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version < '3.13'",
@@ -252,7 +252,7 @@ requires-dist = [
     { name = "discord-py", specifier = ">=2.3.0" },
     { name = "dotabase", specifier = ">=7.8.0" },
     { name = "glicko2", specifier = ">=0.0.5" },
-    { name = "litellm", specifier = ">=1.0.0" },
+    { name = "litellm", specifier = "==1.80.13" },
     { name = "matplotlib", specifier = ">=3.8.0" },
     { name = "numpy", specifier = ">=1.24.0" },
     { name = "openskill", specifier = ">=6.0.0" },

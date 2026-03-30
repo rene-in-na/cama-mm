@@ -69,11 +69,15 @@ class TestAIService:
 
     @pytest.mark.asyncio
     async def test_generate_flavor_returns_comment(self, ai_service):
-        """Test that generate_flavor returns plain text from completion."""
+        """Test that generate_flavor returns a comment string."""
         mock_response = MagicMock()
-        mock_response.choices = [MagicMock(message=MagicMock(
-            content="The house always wins, but at least you tried!",
-        ))]
+        mock_tool_call = MagicMock()
+        mock_tool_call.function.name = "generate_flavor_text"
+        mock_tool_call.function.arguments = json.dumps({
+            "comment": "The house always wins, but at least you tried!",
+            "tone": "roast"
+        })
+        mock_response.choices = [MagicMock(message=MagicMock(tool_calls=[mock_tool_call]))]
 
         with patch("services.ai_service.acompletion", new_callable=AsyncMock) as mock_completion:
             mock_completion.return_value = mock_response

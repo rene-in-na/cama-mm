@@ -44,7 +44,7 @@ class ServiceContainer:
         loan_fee_rate: float = 0.20,
         # AI (optional)
         cerebras_api_key: str | None = None,
-        ai_model: str = "cerebras/llama3.1-8b",
+        ai_model: str = "cerebras/qwen-3-235b-a22b-instruct-2507",
         ai_timeout_seconds: int = 30,
         ai_max_tokens: int = 4096,
     ):

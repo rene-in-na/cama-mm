@@ -2314,8 +2314,8 @@ async def _build_items_used_embed(result: object) -> tuple[discord.Embed, discor
     if not items_used_ids:
         return None
     try:
-        from utils.dig_assets import compose_items_used
         from services.dig_constants import CONSUMABLE_ITEMS
+        from utils.dig_assets import compose_items_used
         items_file = await asyncio.to_thread(compose_items_used, list(items_used_ids))
         if not items_file:
             # No art files — fall back to text-only if we have display names

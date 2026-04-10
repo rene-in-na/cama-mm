@@ -17,7 +17,6 @@ import logging
 from pathlib import Path
 
 import discord
-
 from PIL import Image
 
 from services.dig_constants import BOSS_SLUGS, PICKAXE_SLUGS

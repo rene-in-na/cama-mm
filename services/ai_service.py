@@ -105,11 +105,12 @@ class AIService:
         self.api_key = api_key
         self.timeout = timeout
         self.max_tokens = max_tokens
+        self._is_groq = model.startswith("groq/")
 
         # Configure LiteLLM - set provider-specific API key
         import os
 
-        if model.startswith("groq/"):
+        if self._is_groq:
             os.environ["GROQ_API_KEY"] = api_key
         elif model.startswith("cerebras/"):
             os.environ["CEREBRAS_API_KEY"] = api_key
@@ -148,15 +149,20 @@ class AIService:
         try:
             import asyncio
 
+            kwargs: dict[str, Any] = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": temperature,
+                "timeout": self.timeout,
+                "max_tokens": max_tokens or self.max_tokens,
+                "num_retries": 0,  # No retries - fail fast
+            }
+            # Groq embeds <think> tags in content by default; use parsed mode
+            # to separate reasoning into its own field
+            if self._is_groq:
+                kwargs["reasoning_format"] = "parsed"
             response = await asyncio.wait_for(
-                acompletion(
-                    model=self.model,
-                    messages=messages,
-                    temperature=temperature,
-                    timeout=self.timeout,
-                    max_tokens=max_tokens or self.max_tokens,
-                    num_retries=0,  # No retries - fail fast
-                ),
+                acompletion(**kwargs),
                 timeout=self.timeout,
             )
             message = response.choices[0].message
@@ -195,16 +201,20 @@ class AIService:
         try:
             import asyncio
 
+            kwargs: dict[str, Any] = {
+                "model": self.model,
+                "messages": messages,
+                "tools": tools,
+                "tool_choice": tool_choice,
+                "timeout": self.timeout,
+                "max_tokens": 2000,  # Reasoning models need more tokens for thinking + tool call
+                "num_retries": 0,  # No retries - fail fast
+            }
+            # Groq requires parsed/hidden reasoning_format with tool calls
+            if self._is_groq:
+                kwargs["reasoning_format"] = "parsed"
             response = await asyncio.wait_for(
-                acompletion(
-                    model=self.model,
-                    messages=messages,
-                    tools=tools,
-                    tool_choice=tool_choice,
-                    timeout=self.timeout,
-                    max_tokens=2000,  # Reasoning models need more tokens for thinking + tool call
-                    num_retries=0,  # No retries - fail fast
-                ),
+                acompletion(**kwargs),
                 timeout=self.timeout,
             )
 

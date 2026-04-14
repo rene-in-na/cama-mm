@@ -892,9 +892,12 @@ class DigService:
         if actual_decay <= 0:
             return result
 
-        # Update tunnel depth
+        # Update tunnel depth and reset last_dig_at so decay doesn't
+        # re-apply from the same stale timestamp on the next dig.
+        # NOTE: intentionally do NOT update tunnel["last_dig_at"] in memory —
+        # the cooldown check later in the same call must use the original value.
         self.dig_repo.update_tunnel(
-            tunnel["discord_id"], guild_id, depth=new_depth
+            tunnel["discord_id"], guild_id, depth=new_depth, last_dig_at=now,
         )
         tunnel["depth"] = new_depth
 
@@ -926,6 +929,10 @@ class DigService:
         at_boss_early = self._at_boss_boundary(depth_before, boss_progress_early)
         if at_boss_early is None:
             return None
+
+        # Update last_dig_at so decay doesn't re-apply from a stale timestamp
+        now = int(time.time())
+        self.dig_repo.update_tunnel(discord_id, guild_id, last_dig_at=now)
 
         inv = self.dig_repo.get_inventory(discord_id, guild_id)
         has_lantern_early = any(i.get("item_type") == "lantern" for i in inv)
@@ -3433,6 +3440,7 @@ class DigService:
                     discord_id, guild_id,
                     boss_progress=json.dumps(boss_progress),
                     boss_attempts=attempts,
+                    last_dig_at=now,
                 )
 
                 phase2 = BOSS_PHASE2[at_boss]
@@ -3479,6 +3487,7 @@ class DigService:
                 boss_progress=json.dumps(boss_progress),
                 boss_attempts=0,
                 cheer_data=None,  # Clear cheers
+                last_dig_at=now,
             )
 
             if wager > 0:
@@ -3530,6 +3539,7 @@ class DigService:
                 discord_id, guild_id,
                 depth=new_depth,
                 boss_attempts=attempts,
+                last_dig_at=now,
             )
 
             if wager > 0:

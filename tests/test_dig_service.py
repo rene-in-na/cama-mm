@@ -594,6 +594,10 @@ class TestDecay:
         monkeypatch.setattr(time, "time", lambda: 1_000_000 + 48 * 3600)
         decay_48h = dig_service.calculate_decay(10001, guild_id)
 
+        # Reset depth and last_dig_at for a clean second measurement
+        # (decay now resets last_dig_at to prevent stale re-application)
+        dig_repo.update_tunnel(10001, guild_id, depth=60, last_dig_at=1_000_000)
+
         # 96h: accelerated decay (past 72h threshold)
         monkeypatch.setattr(time, "time", lambda: 1_000_000 + 96 * 3600)
         decay_96h = dig_service.calculate_decay(10001, guild_id)
@@ -2500,9 +2504,9 @@ class TestBossErrors:
         assert result["success"]
         assert result.get("boss_encounter") is True
 
-        # last_dig_at should NOT have been updated
+        # last_dig_at SHOULD be updated to prevent stale decay on next dig
         tunnel = dig_repo.get_tunnel(10001, guild_id)
-        assert tunnel["last_dig_at"] == first_dig_time
+        assert tunnel["last_dig_at"] == dig_time
 
     def test_boss_boundary_returns_full_info(self, dig_service, dig_repo, player_repository, guild_id, monkeypatch):
         """Boss encounter from dig includes dialogue and ascii_art."""

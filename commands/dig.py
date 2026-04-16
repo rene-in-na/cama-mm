@@ -2058,7 +2058,7 @@ class DigCommands(commands.Cog):
         if not player:
             return
 
-        await safe_defer(interaction)
+        await safe_defer(interaction, ephemeral=True)
 
         guild_id = interaction.guild.id if interaction.guild else None
         try:
@@ -2086,7 +2086,7 @@ class DigCommands(commands.Cog):
                     use_embed.set_thumbnail(url=f"attachment://{item_file.filename}")
             except Exception:
                 pass
-            await safe_followup(interaction, embed=use_embed, file=item_file)
+            await safe_followup(interaction, embed=use_embed, file=item_file, ephemeral=True)
         except ValueError as e:
             await safe_followup(interaction, content=str(e), ephemeral=True)
         except Exception as e:
@@ -2217,7 +2217,7 @@ class DigCommands(commands.Cog):
         if not player:
             return
 
-        await safe_defer(interaction)
+        await safe_defer(interaction, ephemeral=True)
 
         guild_id = interaction.guild.id if interaction.guild else None
         try:
@@ -2257,7 +2257,7 @@ class DigCommands(commands.Cog):
                 buy_embed.set_thumbnail(url=f"attachment://{item_file.filename}")
         except Exception:
             pass
-        await safe_followup(interaction, embed=buy_embed, file=item_file)
+        await safe_followup(interaction, embed=buy_embed, file=item_file, ephemeral=True)
 
     # ------------------------------------------------------------------
     # 9. /dig museum — Guild artifact museum
